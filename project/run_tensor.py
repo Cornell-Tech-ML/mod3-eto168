@@ -43,10 +43,9 @@ class Network(minitorch.Module):
         # as the linear layers have been defined, we can now use them
         # same as scalar. Forward layers, with an activation function
         # final layer is a sigmoid to predict
-        x = self.layer1.forward(x).relu()
-        x = self.layer2.forward(x).relu()
-        x = self.layer3.forward(x).sigmoid()
-        return x
+        h = self.layer1.forward(x).relu()
+        h = self.layer2.forward(h).relu()
+        return self.layer3.forward(h).sigmoid()
 
 
 class Linear(minitorch.Module):
@@ -70,49 +69,53 @@ class Linear(minitorch.Module):
         self.bias = RParam(out_size)
         self.out_size = out_size
 
-    def forward(self, inputs):
+    def forward(self, x):
         """Use tensor operations to update weights"""
-        # now we need to approach training from a tensor perspective.
-        # for a linear layer, we need to multiply the input by the weights
-        # and add the bias. This is the forward pass. We cannot use for
-        # loops. Notice that in TensorTrain, run_one and run_many
-        # pass in minitorch.tensor([x]) and minitorch.tensor(X) respectively.
-        # this means that we are working with a tensor.
+        # # now we need to approach training from a tensor perspective.
+        # # for a linear layer, we need to multiply the input by the weights
+        # # and add the bias. This is the forward pass. We cannot use for
+        # # loops. Notice that in TensorTrain, run_one and run_many
+        # # pass in minitorch.tensor([x]) and minitorch.tensor(X) respectively.
+        # # this means that we are working with a tensor.
 
-        # we need to multiply the input by the weights
-        # we can use mul_zip to multiply the input by the weights
-        # using broadcast
+        # # we need to multiply the input by the weights
+        # # we can use mul_zip to multiply the input by the weights
+        # # using broadcast
 
-        # because RParam returns a Parameter object, we need to access the
-        # value
-        weights_values = self.weights.value
-        bias_values = self.bias.value
+        # # because RParam returns a Parameter object, we need to access the
+        # # value
+        # weights_values = self.weights.value
+        # bias_values = self.bias.value
 
-        # now, we a linear layer is multiplcation with
-        # the weights and addition with the bias
-        # Without reshaping the tensors, we get
-        # IndexingError: Shapes (16, 2) and (2, 2) are not broadcastable.
-        # for inputs * weights_values
-        # thus, we need to reshape with view.
-        # Using broadcasting rules:
-        # we line up:
-        #
-        # 16 2
-        # 2  2
-        #
-        # So, we need (16 2 1) and (1 2 2) to be able to broadcast
+        # # now, we a linear layer is multiplcation with
+        # # the weights and addition with the bias
+        # # Without reshaping the tensors, we get
+        # # IndexingError: Shapes (16, 2) and (2, 2) are not broadcastable.
+        # # for inputs * weights_values
+        # # thus, we need to reshape with view.
+        # # Using broadcasting rules:
+        # # we line up:
+        # #
+        # # 16 2
+        # # 2  2
+        # #
+        # # So, we need (16 2 1) and (1 2 2) to be able to broadcast
 
-        dim1, dim2 = inputs.shape
-        inputs_broadcastable = inputs.view(dim1, dim2, 1)
-        weights_broadcastable = weights_values.view(1, dim2, self.out_size)
-        bias_broadcastable = bias_values.view(1, self.out_size)
+        # dim1, dim2 = inputs.shape
+        # inputs_broadcastable = inputs.view(dim1, dim2, 1)
+        # weights_broadcastable = weights_values.view(1, dim2, self.out_size)
+        # bias_broadcastable = bias_values.view(1, self.out_size)
 
-        # now, we multiply the inputs by the weights, then sum them
-        # along the 1st dimension, reshape, then add the bias
-        x = (inputs_broadcastable * weights_broadcastable).sum(1).view(
-            dim1, self.out_size
-        ) + bias_broadcastable
-        return x
+        # # now, we multiply the inputs by the weights, then sum them
+        # # along the 1st dimension, reshape, then add the bias
+        # x = (inputs_broadcastable * weights_broadcastable).sum(1).view(
+        #     dim1, self.out_size
+        # ) + bias_broadcastable
+        # return x
+        batch, in_size = x.shape
+        return self.weights.value.view(1, in_size, self.out_size) * x.view(
+            batch, in_size, 1
+        ).sum(1).view(batch, self.out_size) + self.bias.value.view(self.out_size)
 
 
 def default_log_fn(epoch, total_loss, correct, losses):

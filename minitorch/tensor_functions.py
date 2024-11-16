@@ -196,8 +196,9 @@ class Mul(Function):
         t1, t2 = ctx.saved_values
         # critical: remember that the multiplication chain rule REVERSES
         # the operation. Thus, t2 first, t1 second.
-        return grad_output.f.mul_zip(t2, grad_output), grad_output.f.mul_zip(
-            t1, grad_output
+        return (
+            grad_output.f.mul_zip(t2, grad_output),
+            grad_output.f.mul_zip(t1, grad_output),
         )
 
 
@@ -209,14 +210,16 @@ class Sigmoid(Function):
         return out
 
     def backward(ctx: Context, grad_output: Tensor) -> Tensor:
-        (sigmoid_t1,) = ctx.saved_values
-        # a sigmoid is a map function, so the reverse is a zip.
-        # this is analagous to scalar_functions, where we did:
-        # return sigma * (1.0 - sigma) * d_output
-        return grad_output.f.mul_zip(
-            sigmoid_t1.f.mul_zip(sigmoid_t1, 1 + sigmoid_t1.f.neg_map(sigmoid_t1)),
-            grad_output,
-        )
+        # (sigmoid_t1,) = ctx.saved_values
+        # # a sigmoid is a map function, so the reverse is a zip.
+        # # this is analagous to scalar_functions, where we did:
+        # # return sigma * (1.0 - sigma) * d_output
+        # return grad_output.f.mul_zip(
+        #     sigmoid_t1.f.mul_zip(sigmoid_t1, 1 + sigmoid_t1.f.neg_map(sigmoid_t1)),
+        #     grad_output,
+        # )
+        sigma: Tensor = ctx.saved_values[0]
+        return sigma * (-sigma + 1.0) * grad_output
 
 
 class ReLU(Function):
@@ -246,26 +249,29 @@ class Log(Function):
 class Exp(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor) -> Tensor:
-        ctx.save_for_backward(t1)
-        return t1.f.exp_map(t1)
+        out = t1.f.exp_map(t1)
+        ctx.save_for_backward(out)
+        return out
 
     def backward(ctx: Context, grad_output: Tensor) -> Tensor:
         # forward is a map, so backward is a zip
         # e^x * d_output
-        (t1,) = ctx.saved_values
-        return grad_output.f.mul_zip(t1.f.exp_map(t1), grad_output)
+        (a,) = ctx.saved_values
+        return grad_output.f.mul_zip(a, grad_output)
 
 
 class Sum(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, dim: Tensor) -> Tensor:
-        # follow the scheme of All
-        if dim is not None:
-            return t1.f.add_reduce(t1, int(dim.item()))
-        else:
-            return t1.f.add_reduce(
-                t1.contiguous().view(int(operators.prod(t1.shape))), 0
-            )
+        # # follow the scheme of All
+        # if dim is not None:
+        #     return t1.f.add_reduce(t1, int(dim.item()))
+        # else:
+        #     return t1.f.add_reduce(
+        #         t1.contiguous().view(int(operators.prod(t1.shape))), 0
+        #     )
+        ctx.save_for_backward(t1.shape, dim)
+        return t1.f.add_reduce(t1, int(dim.item()))
 
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, float]:
         """
@@ -278,6 +284,7 @@ class Sum(Function):
 
         G(x) = sum(x)
         """
+        t1_shape, dim = ctx.saved_values
         # we return 0.0 because
         return grad_output, 0.0
 
@@ -285,27 +292,27 @@ class Sum(Function):
 class LT(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, t2: Tensor) -> Tensor:
-        ctx.save_for_backward(t1, t2)
+        ctx.save_for_backward(t1.shape, t2.shape)
         return t1.f.lt_zip(t1, t2)
 
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
         # the derivative of x < y is 0
         # we need to return 0 tensors of the same shape
-        (t1, t2) = ctx.saved_values
-        return zeros(t1.shape), zeros(t2.shape)
+        (t1_shape, t2_shape) = ctx.saved_values
+        return zeros(t1_shape), zeros(t2_shape)
 
 
 class EQ(Function):
     @staticmethod
     def forward(ctx: Context, t1: Tensor, t2: Tensor) -> Tensor:
-        ctx.save_for_backward(t1, t2)
+        ctx.save_for_backward(t1.shape, t2.shape)
         return t1.f.eq_zip(t1, t2)
 
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor, Tensor]:
         # the derivative of x == y is 0
         # we need to return 0 tensors of the same shape
-        (t1, t2) = ctx.saved_values
-        return zeros(t1.shape), zeros(t2.shape)
+        (t1_shape, t2_shape) = ctx.saved_values
+        return zeros(t1_shape), zeros(t2_shape)
 
 
 class IsClose(Function):
@@ -323,30 +330,41 @@ class Permute(Function):
         # note, we use t1._tensor because _tensor is TensorData,
         # which is where we implemented permute
 
-        # dims: Tensor is a tensor of integers that specify the new order
-        # we cannot pass this into permute as it takes integers
-        # thus, we need to convert _storage into a list of integers
-        dims_as_integer = []
-        for i in dims._tensor._storage:
-            dims_as_integer.append(int(i))
+        # # dims: Tensor is a tensor of integers that specify the new order
+        # # we cannot pass this into permute as it takes integers
+        # # thus, we need to convert _storage into a list of integers
+        # dims_as_integer = []
+        # for i in dims._tensor._storage:
+        #     dims_as_integer.append(int(i))
 
-        # int_order = [int(x) for x in dims._tensor._storage]
-        ctx.save_for_backward(dims_as_integer)
+        # # int_order = [int(x) for x in dims._tensor._storage]
+        # ctx.save_for_backward(dims_as_integer)
 
-        # a._new creates a new tensor with the same backend as `a`
-        return t1._new(t1._tensor.permute(*dims_as_integer))
+        # # a._new creates a new tensor with the same backend as `a`
+        # return t1._new(t1._tensor.permute(*dims_as_integer))
+        ctx.save_for_backward(dims)
+        return t1._new(t1._tensor.permute(*[int(dims[i])]) for i in range(dims.size))
 
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         """Permute the gradients back to the original order."""
-        (dims_as_integer,) = ctx.saved_values
+        # (dims_as_integer,) = ctx.saved_values
 
-        # since dims_as_integer was the order that we permuted the tensor INTO
-        # we need to permute the gradient back to the original order
-        reverse_dim_dict = {v: i for i, v in enumerate(dims_as_integer)}
-        reverse_dims = [reverse_dim_dict[i] for i in range(len(dims_as_integer))]
+        # # since dims_as_integer was the order that we permuted the tensor INTO
+        # # we need to permute the gradient back to the original order
+        # reverse_dim_dict = {v: i for i, v in enumerate(dims_as_integer)}
+        # reverse_dims = [reverse_dim_dict[i] for i in range(len(dims_as_integer))]
 
-        # return 0 for dims as given on Ed
-        return grad_output._new(grad_output._tensor.permute(*reverse_dims)), 0.0
+        # # return 0 for dims as given on Ed
+        # return grad_output._new(grad_output._tensor.permute(*reverse_dims)), 0.0
+
+        order: Tensor = ctx.saved_values[0]
+        order2: List[int] = [
+            a[0]
+            for a in sorted(
+                enumerate([order[i] for i in range(order.size)]), key=lambda x: x[1]
+            )
+        ]
+        return grad_output._new(grad_output._tensor.permute(*order2)), 0.0
 
 
 # Done TODO:2.3
