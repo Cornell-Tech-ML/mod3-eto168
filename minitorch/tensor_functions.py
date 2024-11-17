@@ -343,7 +343,7 @@ class Permute(Function):
         # # a._new creates a new tensor with the same backend as `a`
         # return t1._new(t1._tensor.permute(*dims_as_integer))
         ctx.save_for_backward(dims)
-        return t1._new(t1._tensor.permute(*[int(dims[i])]) for i in range(dims.size))
+        return t1._new(t1._tensor.permute(*[int(dims[i]) for i in range(dims.size)]))
 
     def backward(ctx: Context, grad_output: Tensor) -> Tuple[Tensor]:
         """Permute the gradients back to the original order."""

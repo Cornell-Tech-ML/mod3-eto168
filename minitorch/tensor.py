@@ -287,6 +287,14 @@ class Tensor:
     # TODO: Implement for Task 2.3.
     # add in a size function
     @property
+    def dims(self) -> int:
+        """Returns
+        number of dimensions of the tensor
+
+        """
+        return self._tensor.dims
+
+    @property
     def size(self) -> int:
         """Returnsz
         size of the tensor
@@ -345,10 +353,7 @@ class Tensor:
 
     def sum(self, dim: Optional[int] = None) -> Tensor:
         if dim is None:
-            return Sum.apply(
-                self.contiguous().view(self.size),
-                self._ensure_tensor(0),
-            )
+            return Sum.apply(self.contiguous().view(self.size), self._ensure_tensor(0))
             # return Sum.apply(self)
         else:
             return Sum.apply(self, self._ensure_tensor(dim))

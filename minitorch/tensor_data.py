@@ -430,8 +430,8 @@ class TensorData:
 
         return TensorData(
             self._storage,
-            tuple(self.shape[i] for i in order),
-            tuple(self.strides[i] for i in order),
+            tuple([self.shape[i] for i in order]),
+            tuple([self._strides[i] for i in order]),
         )
 
     def to_string(self) -> str:

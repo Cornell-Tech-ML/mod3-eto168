@@ -307,6 +307,8 @@ def tensor_map(
             j = index_to_position(in_index, in_strides)
             out[o] = fn(in_storage[j])
 
+    return _map
+
 
 def tensor_zip(
     fn: Callable[[float, float], float],
@@ -386,6 +388,8 @@ def tensor_zip(
             k = index_to_position(b_index, b_strides)
             out[o] = fn(a_storage[j], b_storage[k])
 
+    return _zip
+
 
 def tensor_reduce(
     fn: Callable[[float, float], float],
@@ -436,6 +440,7 @@ def tensor_reduce(
         #             a_position = index_to_position(a_index, a_strides)
         #             out[out_position] = fn(out[out_position], a_storage[a_position])
 
+        # TODO: NEED TO FIX OPTIMIZATIONS
         # return _reduce
         out_index: Index = np.zeros(MAX_DIMS, np.int32)
         reduce_size = a_shape[reduce_dim]
@@ -446,6 +451,8 @@ def tensor_reduce(
                 out_index[reduce_dim] = j
                 a = index_to_position(out_index, a_strides)
                 out[o] = fn(out[o], a_storage[a])
+
+    return _reduce
 
 
 SimpleBackend = TensorBackend(SimpleOps)
