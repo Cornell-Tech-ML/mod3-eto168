@@ -226,7 +226,15 @@ def tensor_zip(
         i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
 
         # TODO: Implement for Task 3.3.
-        raise NotImplementedError("Need to implement for Task 3.3")
+        # raise NotImplementedError("Need to implement for Task 3.3")
+        if i < out_size:
+            to_index(i, out_shape, out_index)
+            o = index_to_position(out_index, out_strides)
+            broadcast_index(out_index, out_shape, a_shape, a_index)
+            j = index_to_position(a_index, a_strides)
+            broadcast_index(out_index, out_shape, b_shape, b_index)
+            k = index_to_position(b_index, b_strides)
+            out[o] = fn(a_storage[j], b_storage[k])
 
     return cuda.jit()(_zip)  # type: ignore
 
@@ -255,11 +263,28 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     BLOCK_DIM = 32
 
     cache = cuda.shared.array(BLOCK_DIM, numba.float64)
+    # global index of thread i in the grid structure
     i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
+    # thread local position within block
     pos = cuda.threadIdx.x
 
     # TODO: Implement for Task 3.3.
-    raise NotImplementedError("Need to implement for Task 3.3")
+    # raise NotImplementedError("Need to implement for Task 3.3")
+
+    # since our cache is size BLOCK_DIM, then we can, for each block of a
+    # equal to BLOCK_DIM. For each chunk,
+    for block in range(len(a) // BLOCK_DIM):
+        # define guards:
+        # save each value of a to shared. we use
+        cache[i] = a[i]
+        cuda.syncthreads()  # make sure every thread has written to cache
+
+        # sum up cache, this should only require one thread
+        block_sum = 0
+        for idx in range(len(cache)):
+            block_sum += cache[idx]
+
+        out[pos] = block_sum
 
 
 jit_sum_practice = cuda.jit()(_sum_practice)
