@@ -272,23 +272,29 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     # TODO: Implement for Task 3.3.
     # raise NotImplementedError("Need to implement for Task 3.3")
 
-    # if the global position of the thread is smaller than a
+    # check if we have enough total threads for size
     if i < size:
-        # a block deals with a chunk of data (size n/blockdim)
-        # so, as long as the local thread in the block is less than size//block_dim,
-        # we can store the subset in shared memory
-        if pos < size // BLOCK_DIM:
-            # we use a[i] because if we use a[pos], then we would
-            # never work through all of a
-            cache[pos] = a[i]
-            cuda.syncthreads()  # make sure every thread has written to cache
+        cache[pos] = a[i]
+    else:
+        # this case is where a is smaller than the total number of threads
+        # in this case, we need to pad the cache with zeros as covered in class
+        # in order to keep the operations/code consistent
+        cache[pos] = 0.0
 
-            # sum up cache, this should only require one thread
-            block_sum = 0
-            for idx in range(len(cache)):
-                block_sum += cache[idx]
+    # use syncthreads to make sure the cache is completely filled
+    # before we do anything with it
+    cuda.syncthreads()
 
-            out[pos] = block_sum
+    # since the results are saved by block,
+    # use the first thread to compute the sum of the cache, then save
+    # the result.
+    if pos == 0:
+        # now, we have our cache defined, we need to sum
+        run_sum = 0
+        for idx in range(len(cache)):
+            run_sum += cache[idx]
+
+        out[cuda.blockIdx.x] = run_sum
 
 
 jit_sum_practice = cuda.jit()(_sum_practice)
