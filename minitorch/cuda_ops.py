@@ -262,6 +262,7 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     """
     BLOCK_DIM = 32
 
+    # the shared storage for a block
     cache = cuda.shared.array(BLOCK_DIM, numba.float64)
     # global index of thread i in the grid structure
     i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
@@ -271,20 +272,23 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     # TODO: Implement for Task 3.3.
     # raise NotImplementedError("Need to implement for Task 3.3")
 
-    # since our cache is size BLOCK_DIM, then we can, for each block of a
-    # equal to BLOCK_DIM. For each chunk,
-    for block in range(len(a) // BLOCK_DIM):
-        # define guards:
-        # save each value of a to shared. we use
-        cache[i] = a[i]
-        cuda.syncthreads()  # make sure every thread has written to cache
+    # if the global position of the thread is smaller than a
+    if i < size:
+        # a block deals with a chunk of data (size n/blockdim)
+        # so, as long as the local thread in the block is less than size//block_dim,
+        # we can store the subset in shared memory
+        if pos < size // BLOCK_DIM:
+            # we use a[i] because if we use a[pos], then we would
+            # never work through all of a
+            cache[pos] = a[i]
+            cuda.syncthreads()  # make sure every thread has written to cache
 
-        # sum up cache, this should only require one thread
-        block_sum = 0
-        for idx in range(len(cache)):
-            block_sum += cache[idx]
+            # sum up cache, this should only require one thread
+            block_sum = 0
+            for idx in range(len(cache)):
+                block_sum += cache[idx]
 
-        out[pos] = block_sum
+            out[pos] = block_sum
 
 
 jit_sum_practice = cuda.jit()(_sum_practice)
