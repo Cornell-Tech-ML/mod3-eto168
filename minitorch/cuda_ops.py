@@ -285,16 +285,19 @@ def _sum_practice(out: Storage, a: Storage, size: int) -> None:
     # before we do anything with it
     cuda.syncthreads()
 
-    # since the results are saved by block,
+    # sum up the cache
+    stride = 1
+    while stride < BLOCK_DIM:
+        index = 2 * stride * pos
+        if index < BLOCK_DIM:
+            cache[index] += cache[index + stride]
+        stride *= 2
+        cuda.syncthreads()
+
     # use the first thread to compute the sum of the cache, then save
     # the result.
     if pos == 0:
-        # now, we have our cache defined, we need to sum
-        run_sum = 0
-        for idx in range(len(cache)):
-            run_sum += cache[idx]
-
-        out[cuda.blockIdx.x] = run_sum
+        out[cuda.blockIdx.x] = cache[0]
 
 
 jit_sum_practice = cuda.jit()(_sum_practice)
