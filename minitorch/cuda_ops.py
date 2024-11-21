@@ -533,8 +533,8 @@ def _tensor_matrix_multiply(
 
         cuda.syncthreads()
 
-       if i < out_size and j < out_size:
-           out[i, j] = dot_product
+    if i < out_size and j < out_size:
+        out[i, j] = dot_product
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
