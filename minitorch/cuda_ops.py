@@ -517,27 +517,24 @@ def _tensor_matrix_multiply(
 
     assert a_shape[-1] == b_shape[-2]
 
+    dot_product = 0.0
     # Copy a and b matrices to shared memory
     for k in range(0, a_shape[-1], BLOCK_DIM):
-        a_shared[pi, pj] = a_storage[
-            batch * a_batch_stride + i * a_strides[-2] + (k + pj)
-        ]
-        b_shared[pi, pj] = b_storage[
-            batch * b_batch_stride + (k + pi) * b_strides[-1] + j
-        ]
-
-        # synchronize threads
+        # Add guards to ensure that we are within the bounds of the output tensor
+        if i < out_size and k + pj < out_size:
+            a_shared[pi, pj] = a_storage[i, k + pj]
+        if j < out_size and k + pi < out_size:
+            b_shared[pi, pj] = b_storage[k + pi, j]
         cuda.syncthreads()
 
         # Compute dot product for position c[i, j]
-        dot_product = 0.0
         for k2 in range(BLOCK_DIM):
             dot_product += a_shared[pi, k2] * b_shared[k2, pj]
 
         cuda.syncthreads()
 
-    # Write the result to the output tensor
-    out[batch * out_strides[0] + i * out_strides[-2] + j] = dot_product
+       if i < out_size and j < out_size:
+           out[i, j] = dot_product
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
