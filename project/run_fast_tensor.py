@@ -75,8 +75,11 @@ class FastTrain:
         optim = minitorch.SGD(self.model.parameters(), learning_rate)
         BATCH = 10
         losses = []
+        epoch_time = []  # record time
 
         for epoch in range(max_epochs):
+            # record time for each epoch
+            start_t = time.time()
             total_loss = 0.0
             c = list(zip(data.X, data.y))
             random.shuffle(c)
@@ -95,6 +98,11 @@ class FastTrain:
 
                 total_loss = loss.sum().view(1)[0]
 
+                # record end time:
+                end_t = time.time()
+                epoch_t = end_t - start_t
+                epoch_time.append(epoch_t)
+
                 # Update
                 optim.step()
 
@@ -106,7 +114,10 @@ class FastTrain:
                 out = self.model.forward(X).view(y.shape[0])
                 y2 = minitorch.tensor(data.y)
                 correct = int(((out.detach() > 0.5) == y2).sum()[0])
-                log_fn(epoch, total_loss, correct, losses)
+                log_fn(epoch, total_loss, correct, losses, epoch_t)
+
+        average_epoch_time = sum(epoch_time) / len(epoch_time)
+        print(f"Average epoch time: {average_epoch_time:.4f}s")
 
 
 if __name__ == "__main__":
@@ -127,7 +138,7 @@ if __name__ == "__main__":
     if args.DATASET == "xor":
         data = minitorch.datasets["Xor"](PTS)
     elif args.DATASET == "simple":
-        data = minitorch.datasets["Simple"].simple(PTS)
+        data = minitorch.datasets["Simple"](PTS)
     elif args.DATASET == "split":
         data = minitorch.datasets["Split"](PTS)
 
