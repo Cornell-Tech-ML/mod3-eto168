@@ -355,7 +355,7 @@ def tensor_reduce(
         if pos < a_shape[reduce_dim]:
             # we need to modify a_storage_position to be the correct position
             # for a given thread in a given block
-            a_storage_position_corrected += (
+            a_storage_position_corrected = a_storage_position + (
                 pos * a_strides[reduce_dim]
             )  # not sure about this
 
@@ -368,16 +368,13 @@ def tensor_reduce(
 
         cuda.syncthreads()
 
-        # in the cache, do a zip
         stride = 1
         while stride < BLOCK_DIM:
-            index = 2 * stride * pos
-            if index < BLOCK_DIM:
-                cache[index] = fn(cache[index], cache[index + stride])
-            stride *= 2
+            if pos % (2 * stride) == 0:  # adds every 2 elements together
+                cache[pos] = fn(cache[pos], cache[pos + stride])
             cuda.syncthreads()
+            stride *= 2
 
-        # use the 0th thread to save the result
         if pos == 0:
             out[out_pos] = cache[0]
 
