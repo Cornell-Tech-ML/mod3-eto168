@@ -517,24 +517,37 @@ def _tensor_matrix_multiply(
 
     assert a_shape[-1] == b_shape[-2]
 
+    # Initialize result accumulator
     dot_product = 0.0
-    # Copy a and b matrices to shared memory
-    for k in range(0, a_shape[-1], BLOCK_DIM):
-        # Add guards to ensure that we are within the bounds of the output tensor
-        if i < out_size and k + pj < out_size:
-            a_shared[pi, pj] = a_storage[i, k + pj]
-        if j < out_size and k + pi < out_size:
-            b_shared[pi, pj] = b_storage[k + pi, j]
+
+    # Code Plan:
+    # 1) Move across shared dimension by block dim.
+    for k in range(0, a_shape[2], BLOCK_DIM):
+        # Copy into shared memory for a matrix.
+        if i < a_shape[1] and k + pj < a_shape[2]:
+            a_pos = a_batch_stride * batch + a_strides[1] * i + a_strides[2] * (k + pj)
+            a_shared[pi, pj] = a_storage[a_pos]
+
+        # Copy into shared memory for b matrix
+        if j < b_shape[2] and k + pi < b_shape[1]:
+            b_pos = b_batch_stride * batch + b_strides[1] * (k + pi) + b_strides[2] * j
+            b_shared[pi, pj] = b_storage[b_pos]
+
         cuda.syncthreads()
 
-        # Compute dot product for position c[i, j]
+        # Compute the dot product for position c[i, j]
         for k2 in range(BLOCK_DIM):
-            dot_product += a_shared[pi, k2] * b_shared[k2, pj]
+            if k + k2 < a_shape[2]:  # Ensure valid shared memory access
+                dot_product += a_shared[pi, k2] * b_shared[k2, pj]
 
         cuda.syncthreads()
 
-    if i < out_size and j < out_size:
-        out[i, j] = dot_product
+    # Write to global memory
+    # check within bounds
+    if i < out_shape[1] and j < out_shape[2]:
+        out[out_strides[0] * batch + out_strides[1] * i + out_strides[2] * j] = (
+            dot_product
+        )
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
