@@ -1,7 +1,7 @@
 import random
 
 import numba
-
+import time
 import minitorch
 
 datasets = minitorch.datasets
@@ -10,11 +10,11 @@ if numba.cuda.is_available():
     GPUBackend = minitorch.TensorBackend(minitorch.CudaOps)
 
 
-def default_log_fn(epoch, total_loss, correct, losses):
+def default_log_fn(epoch, total_loss, correct, losses, time):
     # print("Epoch ", epoch, " loss ", total_loss, "correct", correct)
     # print more meaningful
     print(
-        f"Epoch {epoch} | Loss: {total_loss:.4f} | Correct: {correct} | Time: {time1:.2f} sec"
+        f"Epoch {epoch} | Loss: {total_loss:.4f} | Correct: {correct} | Time: {time:.2f} sec"
     )
 
 
