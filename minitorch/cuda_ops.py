@@ -348,7 +348,45 @@ def tensor_reduce(
         pos = cuda.threadIdx.x
 
         # TODO: Implement for Task 3.3.
-        raise NotImplementedError("Need to implement for Task 3.3")
+        # raise NotImplementedError("Need to implement for Task 3.3")
+
+        # set guards,
+        # first save out_index (the multidimensional index of out_pos)
+        to_index(out_pos, out_shape, out_index)
+
+        # next, given we know the out_index, we want to find the corresponding
+        # position in storage of the `a` tensor
+        a_storage_position = index_to_position(out_index, a_strides)
+
+        # save the value of a to the cache
+        if pos < a_shape[reduce_dim]:
+            # we need to modify a_storage_position to be the correct position
+            # for a given thread in a given block
+            a_storage_position_corrected += (
+                pos * a_strides[reduce_dim]
+            )  # not sure about this
+
+            # save the values of a to the cache
+            cache[pos] = a_storage[a_storage_position_corrected]
+        else:
+            # if the number of threads is greater than the size of the tensor
+            # we need to pad the cache with zeros
+            cache[pos] = reduce_value
+
+        cuda.syncthreads()
+
+        # in the cache, do a zip
+        stride = 1
+        while stride < BLOCK_DIM:
+            index = 2 * stride * pos
+            if index < BLOCK_DIM:
+                cache[index] = fn(cache[index], cache[index + stride])
+            stride *= 2
+            cuda.syncthreads()
+
+        # use the 0th thread to save the result
+        if pos == 0:
+            out[out_pos] = cache[0]
 
     return jit(_reduce)  # type: ignore
 
