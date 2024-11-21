@@ -524,8 +524,8 @@ def _tensor_matrix_multiply(
 
         # compute the dot product
         for k in range(a_shape[-1]):
-            a_shared[pi, pj] = a[a_batch_stride * batch + a_strides[-2] * i + k]
-            b_shared[pi, pj] = b[b_batch_stride * batch + b_strides[-2] * k + j]
+            a_shared[pi, pj] = a_storage[a_batch_stride * batch + a_strides[-2] * i + k]
+            b_shared[pi, pj] = a_storage[b_batch_stride * batch + b_strides[-2] * k + j]
             cuda.syncthreads()
 
             if i < out_shape[1] and j < out_shape[2]:
